@@ -21,7 +21,6 @@
              data-lng="<%= emergencyRequest.location.lng %>"
              data-status="<%= emergencyRequest.status %>"
              data-id="<%= emergencyRequest._id %>"
-             data-hospitals="<%= JSON.stringify(nearestHospitals).replace(/"/g, '&quot;') %>"
              data-admitted="<%= emergencyRequest.hospitalAdmitted || '' %>">
         </div>
 
@@ -99,7 +98,7 @@
         <% } else { %>
             <h3 class="section-title">Nearest Hospitals</h3>
             <div class="hospital-list">
-                <% nearestHospitals.forEach(hospital => { %>
+                <% nearestHospitals.forEach(function(hospital) { %>
                     <div class="hospital-card" style="border: 1px solid #334155; background: #1e293b;">
                         <div>
                             <div class="hospital-name" style="font-size: 16px;"><%= hospital.name %></div>
@@ -123,7 +122,7 @@
         <form action="/ambulance/complete/<%= emergencyRequest._id %>" method="POST" id="completeForm">
             <select name="hospitalName" required>
                 <option value="" disabled selected>Select Hospital</option>
-                <% nearestHospitals.forEach(hospital => { %>
+                <% nearestHospitals.forEach(function(hospital) { %>
                     <option value="<%= hospital.name %>"><%= hospital.name %></option>
                 <% }) %>
                 <option value="Other">Other / Local Clinic</option>
@@ -142,169 +141,235 @@
     <div class="modal-content" style="border-top: 5px solid #22c55e;">
         <div style="font-size: 40px; margin-bottom: 15px;">📍</div>
         <h3 style="margin-bottom: 10px;">Already Reached</h3>
-        <p style="color: #cbd5e1; margin-bottom: 25px;">You have already reached the patient's location.</p>
+        <p style="color: #cbd5e1; margin-bottom: 25px;">You have already reached the patient location.</p>
         <button type="button" id="closeNavAlert" class="btn-confirm" style="width: 100%;">OK</button>
     </div>
 </div>
+
+<!-- Pass hospital data safely via a hidden script block -->
+<script id="hospitalsJSON" type="application/json"><%= JSON.stringify(nearestHospitals) %></script>
 
 <style>
     .tracking-grid { display: grid; gap: 25px; }
     .tracking-grid.active-mode { grid-template-columns: 2fr 1fr; }
     .tracking-grid.summary-mode { grid-template-columns: 1.5fr 1fr; }
     @media (max-width: 992px) { .tracking-grid.active-mode, .tracking-grid.summary-mode { grid-template-columns: 1fr; } }
-    
     #navBtn.reached { opacity: 0.7; }
 </style>
 
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const mapEl = document.getElementById('map');
-        if (!mapEl) return;
+<%- include('../partials/footer') %>
 
-        const pLat = parseFloat(mapEl.getAttribute('data-lat'));
-        const pLng = parseFloat(mapEl.getAttribute('data-lng'));
-        const requestId = mapEl.getAttribute('data-id');
-        let currentStatus = mapEl.getAttribute('data-status');
-        const admittedHospitalName = mapEl.getAttribute('data-admitted');
-        
+<script>
+    // Runs after footer.ejs has loaded Leaflet JS
+    window.addEventListener('load', function() {
+        var mapEl = document.getElementById('map');
+        if (!mapEl) return;
+        if (typeof L === 'undefined') { console.error('Leaflet failed to load'); return; }
+
+        var pLat = parseFloat(mapEl.getAttribute('data-lat'));
+        var pLng = parseFloat(mapEl.getAttribute('data-lng'));
+        var requestId = mapEl.getAttribute('data-id');
+        var currentStatus = mapEl.getAttribute('data-status');
+        var admittedHospitalName = mapEl.getAttribute('data-admitted');
+
         if (isNaN(pLat) || isNaN(pLng)) return;
 
-        const map = L.map('map').setView([pLat, pLng], 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
-        
-        const patientIcon = L.divIcon({ className: 'custom-div-icon', html: "<div style='background-color: var(--primary-red); width: 15px; height: 15px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);'></div>", iconSize: [20, 20], iconAnchor: [10, 10] });
-        const ambulanceIcon = L.divIcon({ className: 'custom-div-icon', html: "<div style='background-color: #3b82f6; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(59, 130, 246, 0.8); display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;'>🚑</div>", iconSize: [24, 24], iconAnchor: [12, 12] });
-        const hospitalIcon = L.divIcon({ className: 'custom-div-icon', html: "<div style='background-color: var(--primary-green); width: 15px; height: 15px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);'></div>", iconSize: [20, 20], iconAnchor: [10, 10] });
-        
-        const patientMarker = L.marker([pLat, pLng], {icon: patientIcon}).addTo(map).bindPopup("<b>Patient Location</b>").openPopup();
-        let providerMarker = null;
+        // Initialize map
+        var map = L.map('map').setView([pLat, pLng], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '\u00A9 OpenStreetMap contributors'
+        }).addTo(map);
 
-        const hospitalsData = mapEl.getAttribute('data-hospitals');
-        if (hospitalsData) {
+        // Icons
+        var patientIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: '<div style="background-color:#E63946;width:15px;height:15px;border-radius:50%;border:3px solid white;box-shadow:0 0 5px rgba(0,0,0,0.5);"></div>',
+            iconSize: [20, 20], iconAnchor: [10, 10]
+        });
+        var ambulanceIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: '<div style="background-color:#3b82f6;width:18px;height:18px;border-radius:50%;border:3px solid white;box-shadow:0 0 10px rgba(59,130,246,0.8);display:flex;align-items:center;justify-content:center;font-size:10px;">\uD83D\uDE91</div>',
+            iconSize: [24, 24], iconAnchor: [12, 12]
+        });
+        var hospitalIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: '<div style="background-color:#2A9D8F;width:15px;height:15px;border-radius:50%;border:3px solid white;box-shadow:0 0 5px rgba(0,0,0,0.5);"></div>',
+            iconSize: [20, 20], iconAnchor: [10, 10]
+        });
+
+        // Patient marker
+        var patientMarker = L.marker([pLat, pLng], { icon: patientIcon }).addTo(map)
+            .bindPopup('<b>Patient Location</b>').openPopup();
+        var providerMarker = null;
+
+        // Hospital markers from safe JSON block
+        var hospitalsEl = document.getElementById('hospitalsJSON');
+        if (hospitalsEl) {
             try {
-                const hospitals = JSON.parse(hospitalsData.replace(/&quot;/g, '"'));
-                hospitals.forEach(hospital => {
+                var hospitals = JSON.parse(hospitalsEl.textContent);
+                hospitals.forEach(function(hospital) {
                     if (currentStatus === 'completed') {
                         if (hospital.name === admittedHospitalName) {
-                            L.marker([hospital.lat, hospital.lng], {icon: hospitalIcon}).addTo(map).bindPopup("<b>Admitted: " + hospital.name + "</b>").openPopup();
+                            L.marker([hospital.lat, hospital.lng], { icon: hospitalIcon }).addTo(map)
+                                .bindPopup('<b>Admitted: ' + hospital.name + '</b>').openPopup();
                         }
                     } else {
-                        L.marker([hospital.lat, hospital.lng], {icon: hospitalIcon}).addTo(map).bindPopup("<b>" + hospital.name + "</b>");
+                        L.marker([hospital.lat, hospital.lng], { icon: hospitalIcon }).addTo(map)
+                            .bindPopup('<b>' + hospital.name + '</b>');
                     }
                 });
-            } catch (e) { console.error("Error parsing hospital data", e); }
+            } catch (e) {
+                console.error('Error parsing hospital data:', e);
+            }
         }
 
+        // Haversine distance formula (returns metres)
         function getDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371e3;
-            const φ1 = lat1 * Math.PI/180;
-            const φ2 = lat2 * Math.PI/180;
-            const Δφ = (lat2-lat1) * Math.PI/180;
-            const Δλ = (lon2-lon1) * Math.PI/180;
-            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2);
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            var R = 6371e3;
+            var rad = Math.PI / 180;
+            var dLat = (lat2 - lat1) * rad;
+            var dLon = (lon2 - lon1) * rad;
+            var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(lat1 * rad) * Math.cos(lat2 * rad) *
+                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         }
 
-        async function markAsReached() {
-            try {
-                const response = await fetch(`/ambulance/reached/${requestId}`, { method: 'POST' });
-                const data = await response.json();
-                if (data.success) {
-                    currentStatus = 'reached';
-                    updateUIReturnReached();
+        // Auto-mark reached via AJAX
+        var reachRequestSent = false;
+        function markAsReached() {
+            if (reachRequestSent) return;
+            reachRequestSent = true;
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/ambulance/reached/' + requestId, true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        if (data.success) {
+                            currentStatus = 'reached';
+                            updateUIReached();
+                        } else {
+                            reachRequestSent = false;
+                        }
+                    } catch (e) {
+                        console.error('Error parsing reached response:', e);
+                        reachRequestSent = false;
+                    }
+                } else {
+                    reachRequestSent = false;
                 }
-            } catch (err) { console.error("Error auto-marking reached:", err); }
+            };
+            xhr.onerror = function() {
+                console.error('Network error marking reached');
+                reachRequestSent = false;
+            };
+            xhr.send();
         }
 
-        function updateUIReturnReached() {
-            const distanceValEl = document.getElementById('distanceValue');
-            if (distanceValEl) { distanceValEl.innerText = "Nearby (Arrived)"; distanceValEl.style.color = "#22c55e"; }
-            
-            const navBtn = document.getElementById('navBtn');
-            if (navBtn) { navBtn.classList.add('reached'); navBtn.innerText = "📍 Arrived at Location"; }
-            
-            const reachedMsg = document.getElementById('reachedMsg');
-            if (reachedMsg) reachedMsg.style.display = "block";
+        // Update UI to show "reached" state
+        function updateUIReached() {
+            var distEl = document.getElementById('distanceValue');
+            if (distEl) { distEl.innerText = 'Nearby (Arrived)'; distEl.style.color = '#22c55e'; }
 
-            const statusBadge = document.getElementById('statusBadge');
-            if (statusBadge) { statusBadge.innerText = 'reached'; statusBadge.className = 'badge reached'; }
+            var navBtnEl = document.getElementById('navBtn');
+            if (navBtnEl) { navBtnEl.classList.add('reached'); navBtnEl.innerText = '\uD83D\uDCCD Arrived at Location'; }
 
-            // Update Progress Bar
-            const stepOnWay = document.getElementById('step-onway');
+            var reachedMsg = document.getElementById('reachedMsg');
+            if (reachedMsg) reachedMsg.style.display = 'block';
+
+            var badge = document.getElementById('statusBadge');
+            if (badge) { badge.innerText = 'reached'; badge.className = 'badge reached'; }
+
+            var stepOnWay = document.getElementById('step-onway');
             if (stepOnWay) { stepOnWay.className = 'status-step completed'; }
-            const iconOnWay = document.getElementById('icon-onway');
-            if (iconOnWay) iconOnWay.innerText = '✓';
-            const lineOnWay = stepOnWay ? stepOnWay.querySelector('.status-line') : null;
-            if (lineOnWay) lineOnWay.classList.add('completed');
+            var iconOnWay = document.getElementById('icon-onway');
+            if (iconOnWay) iconOnWay.innerText = '\u2713';
+            if (stepOnWay) {
+                var lineOnWay = stepOnWay.querySelector('.status-line');
+                if (lineOnWay) lineOnWay.classList.add('completed');
+            }
 
-            const stepReached = document.getElementById('step-reached');
-            if (stepReached) { stepReached.className = 'status-step active'; }
+            var stepReached = document.getElementById('step-reached');
+            if (stepReached) stepReached.className = 'status-step active';
         }
 
-        function updateTrackingUI(currentLat, currentLng) {
-            const distance = getDistance(currentLat, currentLng, pLat, pLng);
-            const distanceValEl = document.getElementById('distanceValue');
-            if (!distanceValEl) return;
+        // Real-time tracking UI update
+        function updateTrackingUI(lat, lng) {
+            var distance = getDistance(lat, lng, pLat, pLng);
+            var distEl = document.getElementById('distanceValue');
+            if (!distEl) return;
 
             if (distance <= 50 && currentStatus === 'accepted') {
                 markAsReached();
             }
 
             if (currentStatus === 'reached' || distance <= 50) {
-                distanceValEl.innerText = "Nearby (Arrived)";
-                distanceValEl.style.color = "#22c55e";
+                distEl.innerText = 'Nearby (Arrived)';
+                distEl.style.color = '#22c55e';
             } else {
-                const km = (distance / 1000).toFixed(2);
-                distanceValEl.innerText = km + " km away";
-                distanceValEl.style.color = "#3b82f6";
+                distEl.innerText = (distance / 1000).toFixed(2) + ' km away';
+                distEl.style.color = '#3b82f6';
             }
 
             if (providerMarker) {
-                providerMarker.setLatLng([currentLat, currentLng]);
+                providerMarker.setLatLng([lat, lng]);
             } else {
-                providerMarker = L.marker([currentLat, currentLng], {icon: ambulanceIcon}).addTo(map).bindPopup("<b>Your Location</b>");
-                const group = new L.featureGroup([patientMarker, providerMarker]);
-                map.fitBounds(group.getBounds(), {padding: [50, 50]});
+                providerMarker = L.marker([lat, lng], { icon: ambulanceIcon }).addTo(map)
+                    .bindPopup('<b>Your Location</b>');
+                map.fitBounds(L.featureGroup([patientMarker, providerMarker]).getBounds(), { padding: [50, 50] });
             }
         }
 
+        // Start geolocation
         if (currentStatus !== 'completed' && navigator.geolocation) {
             navigator.geolocation.watchPosition(
-                (pos) => updateTrackingUI(pos.coords.latitude, pos.coords.longitude),
-                (err) => console.error("Geolocation error:", err),
+                function(pos) { updateTrackingUI(pos.coords.latitude, pos.coords.longitude); },
+                function(err) { console.error('Geolocation error:', err); },
                 { enableHighAccuracy: true }
             );
         }
 
-        if (currentStatus === 'reached') { updateUIReturnReached(); }
+        // Apply reached UI if already reached from server
+        if (currentStatus === 'reached') { updateUIReached(); }
 
-        // Navigation Button Logic
-        const navBtn = document.getElementById('navBtn');
-        const navAlertModal = document.getElementById('navAlertModal');
-        const closeNavAlert = document.getElementById('closeNavAlert');
-        
+        // Navigation Button
+        var navBtn = document.getElementById('navBtn');
+        var navAlertModal = document.getElementById('navAlertModal');
+        var closeNavAlert = document.getElementById('closeNavAlert');
+
         if (navBtn) {
-            navBtn.onclick = () => {
+            navBtn.addEventListener('click', function() {
                 if (currentStatus === 'reached') {
-                    navAlertModal.classList.add('show');
+                    if (navAlertModal) navAlertModal.classList.add('show');
                 } else {
-                    window.open(`https://www.google.com/maps/dir/?api=1&destination=${pLat},${pLng}`, '_blank');
+                    window.open('https://www.google.com/maps/dir/?api=1&destination=' + pLat + ',' + pLng, '_blank');
                 }
-            };
+            });
         }
-        if (closeNavAlert) { closeNavAlert.onclick = () => navAlertModal.classList.remove('show'); }
+        if (closeNavAlert) {
+            closeNavAlert.addEventListener('click', function() {
+                if (navAlertModal) navAlertModal.classList.remove('show');
+            });
+        }
 
-        // Modal Logic
-        const modal = document.getElementById('completeModal');
-        const openBtn = document.getElementById('openCompleteModal');
-        const closeBtn = document.getElementById('closeModal');
-        if (modal && openBtn) openBtn.onclick = () => modal.classList.add('show');
-        if (modal && closeBtn) closeBtn.onclick = () => modal.classList.remove('show');
-        window.onclick = (event) => { 
-            if (event.target == modal) modal.classList.remove('show');
-            if (event.target == navAlertModal) navAlertModal.classList.remove('show');
+        // Completion Modal
+        var modal = document.getElementById('completeModal');
+        var openBtn = document.getElementById('openCompleteModal');
+        var closeBtn = document.getElementById('closeModal');
+
+        if (modal && openBtn) {
+            openBtn.addEventListener('click', function() { modal.classList.add('show'); });
         }
+        if (modal && closeBtn) {
+            closeBtn.addEventListener('click', function() { modal.classList.remove('show'); });
+        }
+
+        // Close modals on backdrop click
+        document.addEventListener('click', function(event) {
+            if (modal && event.target === modal) modal.classList.remove('show');
+            if (navAlertModal && event.target === navAlertModal) navAlertModal.classList.remove('show');
+        });
     });
 </script>
-
-<%- include('../partials/footer') %>
