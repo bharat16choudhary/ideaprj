@@ -6,7 +6,7 @@ const User = require('../models/User');
 // Middleware to check if user is logged in and has role 'ambulance'
 const requireAmbulance = (req, res, next) => {
     if (!req.session.userId || req.session.role !== 'ambulance') {
-        return res.redirect('https://rapidaid-pg2m.onrender.com/login?role=ambulance');
+        return res.redirect('/login?role=ambulance');
     }
     next();
 };
@@ -46,7 +46,7 @@ router.post('/accept/:id', async (req, res) => {
             emergencyRequest.acceptedBy = req.session.userId;
             await emergencyRequest.save();
         }
-        res.redirect(`https://rapidaid-pg2m.onrender.com/ambulance/tracking/${req.params.id}`);
+        res.redirect(`/ambulance/tracking/${req.params.id}`);
     } catch (err) {
         console.error(err);
         res.status(500).send('Server Error');
@@ -61,7 +61,7 @@ router.post('/reject/:id', async (req, res) => {
             ambulance.rejectedRequests.push(req.params.id);
             await ambulance.save();
         }
-        res.redirect('https://rapidaid-pg2m.onrender.com/ambulance/dashboard');
+        res.redirect('/ambulance/dashboard');
     } catch (err) {
         console.error(err);
         res.status(500).send('Server Error');
@@ -78,7 +78,7 @@ router.get('/tracking/:id', async (req, res) => {
         });
 
         if (!emergencyRequest) {
-            return res.redirect('https://rapidaid-pg2m.onrender.com/ambulance/dashboard');
+            return res.redirect('/ambulance/dashboard');
         }
 
         // Static dataset for 5 nearest hospitals
@@ -127,7 +127,7 @@ router.post('/complete/:id', async (req, res) => {
             },
             { new: true }
         );
-        res.redirect('https://rapidaid-pg2m.onrender.com/ambulance/dashboard');
+        res.redirect('/ambulance/dashboard');
     } catch (err) {
         console.error(err);
         res.status(500).send('Server Error');
