@@ -1,0 +1,104 @@
+<%- include('../partials/header') %>
+<script>
+    document.body.classList.add('provider-dark-theme');
+</script>
+<script>
+    // Refresh page every 10 seconds to get new incoming requests
+    setTimeout(function() {
+        location.reload();
+    }, 10000);
+</script>
+
+<div class="dashboard-header">
+    <h2 class="dashboard-title"><%= user.name %>'s Dashboard</h2>
+</div>
+
+<h3 class="section-title">Incoming Nearby Requests</h3>
+
+<% if (incomingRequests.length === 0) { %>
+    <p style="margin-bottom: 40px;">No pending requests at the moment.</p>
+<% } else { %>
+    <div class="requests-grid">
+        <% incomingRequests.forEach(request => { %>
+            <div class="card status-pending">
+                <div class="card-header">
+                    <div class="card-title"><%= request.patientName %></div>
+                    <span class="badge pending">Pending</span>
+                </div>
+                <div class="card-body">
+                    <p><strong>Phone:</strong> <%= request.phone %></p>
+                    <p><strong>Injured:</strong> <%= request.injuredCount %></p>
+                    <p><strong>Time:</strong> <%= new Date(request.createdAt).toLocaleTimeString() %></p>
+                </div>
+                <div class="card-actions">
+                    <form action="/ambulance/accept/<%= request._id %>" method="POST" style="flex: 1;">
+                        <button type="submit" class="btn-accept-glow" style="width: 100%;">Accept</button>
+                    </form>
+                    <form action="/ambulance/reject/<%= request._id %>" method="POST" style="flex: 1;">
+                        <button type="submit" class="btn-reject-outline" style="width: 100%;">Reject</button>
+                    </form>
+                </div>
+            </div>
+        <% }) %>
+    </div>
+<% } %>
+
+<% 
+    const acceptedList = historyRequests.filter(r => r.status === 'accepted');
+    const completedList = historyRequests.filter(r => r.status === 'completed');
+%>
+
+<h3 class="section-title">Accepted Requests (Active)</h3>
+
+<% if (acceptedList.length === 0) { %>
+    <p style="margin-bottom: 40px; color: var(--text-muted);">No active accepted requests at the moment.</p>
+<% } else { %>
+    <div class="requests-grid">
+        <% acceptedList.forEach(request => { %>
+            <div class="card status-<%= request.status %>">
+                <div class="card-header">
+                    <div class="card-title"><%= request.patientName %></div>
+                    <span class="badge <%= request.status %>"><%= request.status %></span>
+                </div>
+                <div class="card-body">
+                    <p><strong>Phone:</strong> <%= request.phone %></p>
+                    <p><strong>Injured:</strong> <%= request.injuredCount %></p>
+                    <p><strong>Time:</strong> <%= new Date(request.createdAt).toLocaleTimeString() %></p>
+                </div>
+                <div class="card-actions">
+                    <a href="/ambulance/tracking/<%= request._id %>" class="btn-nav-blue" style="width: 100%;">View Details / Track</a>
+                </div>
+            </div>
+        <% }) %>
+    </div>
+<% } %>
+
+<h3 class="section-title">Completed Requests (History)</h3>
+
+<% if (completedList.length === 0) { %>
+    <p style="color: var(--text-muted);">No completed requests in history yet.</p>
+<% } else { %>
+    <div class="requests-grid">
+        <% completedList.forEach(request => { %>
+            <div class="card status-<%= request.status %>" style="opacity: 0.8;">
+                <div class="card-header">
+                    <div class="card-title"><%= request.patientName %></div>
+                    <span class="badge <%= request.status %>"><%= request.status %></span>
+                </div>
+                <div class="card-body">
+                    <p><strong>Phone:</strong> <%= request.phone %></p>
+                    <p><strong>Injured:</strong> <%= request.injuredCount %></p>
+                    <% if (request.status === 'completed' && request.hospitalAdmitted) { %>
+                        <p><strong>Hospital:</strong> <span style="color: #22c55e;"><%= request.hospitalAdmitted %></span></p>
+                    <% } %>
+                    <p><strong>Date:</strong> <%= new Date(request.createdAt).toLocaleDateString() %></p>
+                </div>
+                <div class="card-actions">
+                    <a href="/ambulance/tracking/<%= request._id %>" class="btn-dark-outline" style="width: 100%; justify-content: center;">View Summary</a>
+                </div>
+            </div>
+        <% }) %>
+    </div>
+<% } %>
+
+<%- include('../partials/footer') %>
