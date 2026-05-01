@@ -13,8 +13,8 @@ const redirectIfLoggedIn = (req, res, next) => {
             });
             return;
         }
-        if (req.session.role === 'user') return res.redirect('/user/dashboard');
-        if (req.session.role === 'ambulance') return res.redirect('/ambulance/dashboard');
+        if (req.session.role === 'user') return res.redirect('https://rapidaid-pg2m.onrender.com/user/dashboard');
+        if (req.session.role === 'ambulance') return res.redirect('https://rapidaid-pg2m.onrender.com/ambulance/dashboard');
     }
     next();
 };
@@ -49,8 +49,8 @@ router.post('/login', async (req, res) => {
         req.session.name = user.name;
         req.session.role = user.role;
         
-        if (role === 'user') return res.redirect('/user/dashboard');
-        return res.redirect('/ambulance/dashboard');
+        if (role === 'user') return res.redirect('https://rapidaid-pg2m.onrender.com/user/dashboard');
+        return res.redirect('https://rapidaid-pg2m.onrender.com/ambulance/dashboard');
     } catch (err) {
         console.error(err);
         res.render('login', { role, error: 'Server error. Please try again later.' });
@@ -87,7 +87,7 @@ router.post('/signup', async (req, res) => {
         });
 
         await user.save();
-        res.redirect(`/login?role=${role}`);
+        res.redirect(`https://rapidaid-pg2m.onrender.com/login?role=${role}`);
     } catch (err) {
         console.error("Signup Error:", err);
         let errorMsg = 'Server error. Please try again later.';
@@ -108,7 +108,7 @@ router.post('/signup', async (req, res) => {
 // Logout
 router.get('/logout', (req, res) => {
     req.session.destroy(() => {
-        res.redirect('/');
+        res.redirect('https://rapidaid-pg2m.onrender.com/');
     });
 });
 

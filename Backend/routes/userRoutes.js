@@ -5,7 +5,7 @@ const EmergencyRequest = require('../models/EmergencyRequest');
 // Middleware to check if user is logged in and has role 'user'
 const requireUser = (req, res, next) => {
     if (!req.session.userId || req.session.role !== 'user') {
-        return res.redirect('/login?role=user');
+        return res.redirect('https://rapidaid-pg2m.onrender.com/login?role=user');
     }
     next();
 };
@@ -54,7 +54,7 @@ router.post('/report', async (req, res) => {
         });
 
         await newRequest.save();
-        res.redirect('/user/dashboard');
+        res.redirect('https://rapidaid-pg2m.onrender.com/user/dashboard');
     } catch (err) {
         console.error(err);
         res.status(500).send('Server Error');
