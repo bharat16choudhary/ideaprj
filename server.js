@@ -31,7 +31,7 @@ app.use((req, res, next) => {
 });
 
 // Database Connection
-mongoose.connect('mongodb://127.0.0.1:27017/rapidaidDB')
+mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/rapidaidDB')
 .then(() => {
     console.log("MongoDB Connected");
 })
